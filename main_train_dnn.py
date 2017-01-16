@@ -31,7 +31,7 @@ decay_steps = 100
 learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step, decay_steps, decay_rate, staircase=True)
 
 batch_size = 400
-n_epochs = 1000  # 21276
+n_epochs = 500  # 21276
 display_step = 10
 
 n_input = 440
@@ -98,9 +98,10 @@ optimizer = tf.train.RMSPropOptimizer(learning_rate=learning_rate).minimize(cost
 correct_pred = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
+
 # Initializing the variables
 init = tf.initialize_all_variables()
-
+'''
 saver = tf.train.Saver()
 # Launch the graph
 with tf.Session() as sess:
@@ -130,6 +131,7 @@ with tf.Session() as sess:
         if i % checkpoint_steps == 0:
             saver.save(sess, checkpoint_dir + 'model.ckpt', global_step=i)
         i = i + 1
+'''
 
 
 # to get Prec, Recall, Fvalue
@@ -169,51 +171,44 @@ def prec_recall_fvalue( p_y_pred, y_gt, thres ):
 
 gt_roll = []
 pred_roll = []
-with open(cfg.dev_cv_csv_path, 'rb') as f:
-    reader = csv.reader(f)
-    lis = list(reader)
+# Launch the graph
+with tf.Session() as sess:
+    sess.run(init)
+    saver = tf.train.Saver()
+    ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
+    if ckpt and ckpt.model_checkpoint_path:
+        saver.restore(sess, ckpt.model_checkpoint_path)
+    else:
+        pass
 
-    # read one line
-    for li in lis:
-        na = li[1]
-#        print li[0]
-        curr_fold = int(li[2])
+    with open(cfg.dev_cv_csv_path, 'rb') as f:
+        reader = csv.reader(f)
+        lis = list(reader)
+        # read one line
+        for li in lis:
+            na = li[1]
+            curr_fold = int(li[2])
+            if fold == curr_fold:
+                # get features, tags
+                fe_path = fe_fd + '/' + na + '.f'
+                info_path = cfg.dev_wav_fd + '/' + na + '.csv'
+                tags = pp_dev_data.GetTags(info_path)
+                y = pp_dev_data.TagsToCategory(tags)
+                X = cPickle.load(open(fe_path, 'rb'))
 
-        if fold == curr_fold:
-            # get features, tags
-            fe_path = fe_fd + '/' + na + '.f'
-            info_path = cfg.dev_wav_fd + '/' + na + '.csv'
-            tags = pp_dev_data.GetTags(info_path)
-            y = pp_dev_data.TagsToCategory(tags)
-            X = cPickle.load(open(fe_path, 'rb'))
+                # aggregate data
+                X3d = mat_2d_to_3d(X, agg_num, hop)
+                te_xsingle = mat_3d_to_2d(X3d)
 
-            # aggregate data
-            X3d = mat_2d_to_3d(X, agg_num, hop)
-            te_xsingle = mat_3d_to_2d(X3d)
-
-            # Launch the graph
-            with tf.Session() as sess:
-                sess.run(init)
-                saver = tf.train.Saver()
-                ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-                if ckpt and ckpt.model_checkpoint_path:
-                    saver.restore(sess, ckpt.model_checkpoint_path)
-                else:
-                    pass
-                p_y_pred = sess.run([pred], feed_dict={x: te_xsingle, keep_prob: 1.0})
-
-#            p_y_pred = md.predict(X3d)
-            p_y_temp = p_y_pred[0]
-            p_y_tempb = np.mean(p_y_temp, axis=0)  # shape:(n_label)
-            pred_out = np.zeros(n_labels)
-            pred_out[np.where(p_y_tempb > thres)] = 1
-            pred_roll.append(pred_out)
-            gt_roll.append(y)
+                p_y_pred = sess.run(pred, feed_dict={x: te_xsingle, keep_prob: 1.0})
+                p_y_tempb = np.mean(p_y_pred, axis=0)  # shape:(n_label)
+                pred_out = np.zeros(n_labels)
+                pred_out[np.where(p_y_tempb > thres)] = 1
+                pred_roll.append(pred_out)
+                gt_roll.append(y)
 
 pred_roll = np.array(pred_roll)
 gt_roll = np.array(gt_roll)
-
 # calculate prec, recall, fvalue
 prec, recall, fvalue = prec_recall_fvalue(pred_roll, gt_roll, thres)
 print prec, recall, fvalue
-

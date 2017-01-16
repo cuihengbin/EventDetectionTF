@@ -100,6 +100,7 @@ def main():
       capacity=capacity,
       min_after_dequeue=min_after_dequeue)
 
+
   # Define the model
   input_units = FEATURE_SIZE
   hidden1_units = 500
@@ -209,6 +210,7 @@ def main():
 
   tf.get_variable_scope().reuse_variables()
 
+
   # Define accuracy op for train data, with all train data or batch size data
   train_accuracy_logits = inference(batch_xtrain, False)
 #  train_sigmoid = tf.nn.sigmoid(train_accuracy_logits)
@@ -232,6 +234,7 @@ def main():
 #  inference_sigmoid = tf.nn.sigmoid(inference_logits)
   inference_sigmoid = inference_logits
   inference_op = tf.argmax(inference_sigmoid, 1)
+
 
   # Initialize saver and summary
   checkpoint_file = checkpoint_dir + "checkpoint.ckpt"
@@ -313,6 +316,7 @@ def main():
         coord.request_stop()
       # Wait for threads to exit
       coord.join(threads)
+
 
     elif mode == "export":
       print("Start to export model directly")
